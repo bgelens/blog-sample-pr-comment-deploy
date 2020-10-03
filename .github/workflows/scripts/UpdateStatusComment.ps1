@@ -11,7 +11,7 @@ param (
 
 $eventObject = Get-Content -Path $env:GITHUB_EVENT_PATH | ConvertFrom-Json -AsHashtable
 
-$actionHelperModule = Join-Path -Path $PSScriptRoot -ChildPath 'Action_Helpers.psm1' -Resolve -ErrorAction Stop
+$actionHelperModule = Join-Path -Path $PSScriptRoot -ChildPath 'Helpers.psm1' -Resolve -ErrorAction Stop
 Import-Module -Name $actionHelperModule -Verbose:$false -DisableNameChecking -Force
 
 $owner, $repo = $env:GITHUB_REPOSITORY -split '\/'
