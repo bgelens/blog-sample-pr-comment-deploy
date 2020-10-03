@@ -1,0 +1,62 @@
+name: Release-Acceptance
+
+on:
+  issue_comment:
+    types: [created]
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  deployCheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # caveat here is that the workflow PowerShell script will be used from the default branch
+      - id: check
+        name: Check for actionable PR comment
+        run: ./.github/workflows/scripts/NewCommentProcess.ps1 `
+          -ActionString '/deploy', '/redeploy' `
+          -RequiredBaseBranch 'main' `
+          -RequiredHeadBranch 'release/*', 'hotfix/*' `
+          -Environment 'acceptance'
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+    outputs:
+      validprcommand: ${{ steps.check.outputs.validprcommand }}
+      prheadref: ${{ steps.check.outputs.prheadref }}
+      deploymentId: ${{ steps.check.outputs.deploymentId }}
+
+  doWork:
+    needs: deployCheck
+    if: needs.deployCheck.outputs.validprcommand == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          # we checkout the headref to do the work on
+          ref: ${{ needs.deployCheck.outputs.prheadref }}
+
+      - name: Fetch projects in scope for release
+        run: ./doWork.ps1
+
+  postDeploy:
+    needs:
+      - deployCheck
+      - doWork
+    runs-on: ubuntu-latest
+    if: always() && needs.deployCheck.outputs.validprcommand == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Finish deployment
+        run: ./.github/workflows/scripts/UpdateStatusComment.ps1 `
+          -DeploymentId '${{ needs.deployCheck.outputs.deploymentId }}' `
+          -RequiredSuccessJobs 'doWork'
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
